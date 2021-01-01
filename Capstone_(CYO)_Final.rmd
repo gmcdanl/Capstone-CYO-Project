@@ -1,0 +1,1186 @@
+---
+title: "Capstone (CYO) Project HarvardX PH125.9x"
+author: "Gail McDaniel"
+date: "December 31, 2020"
+output:
+  pdf_document:
+    highlight: pygments
+    number_sections: yes
+    toc: yes
+    toc_depth: 3
+  word_document:
+    toc: yes
+    number_sections: yes
+    toc_depth: '3'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+#Create Kable wrapper function for thousands separator in table output, and nice formating with kableExtra
+niceKable = function(...) {
+  knitr::kable(..., format.args = list(decimal.mark = '.', big.mark = ",")) %>% kable_styling()
+}
+```
+
+
+
+\newpage
+
+
+```{r include_packages, echo=FALSE, include=FALSE}
+# Turn off warnings.. not good idea but don't want them showing 
+options(warn = -1)
+
+if (!require("DataExplorer")) install.packages("DataExplorer", repos = "http://cran.us.r-project.org")
+if (!require("caret")) install.packages("caret", repos = "http://cran.us.r-project.org")
+if (!require("dplyr")) install.packages("dplyr", repos = "http://cran.us.r-project.org")
+if (!require("reshape2")) install.packages("reshape2", repos = "http://cran.us.r-project.org")
+if (!require("tidyverse")) install.packages("tidyverse", repos = "http://cran.us.r-project.org")
+if (!require("ggcorrplot")) install.packages("ggcorrplot", repos = "http://cran.us.r-project.org")
+if (!require("summarytools")) install.packages("summarytools", repos = "http://cran.us.r-project.org")
+if (!require("stargazer")) install.packages("stargazer", repos = "http://cran.us.r-project.org")
+if (!require("Rmisc")) install.packages("Rmisc", repos = "http://cran.us.r-project.org")
+if (!require("rpart")) install.packages("rpart", repos = "http://cran.us.r-project.org")
+if (!require("ggfortify")) install.packages("ggfortify", repos = "http://cran.us.r-project.org")
+if(!require("kableExtra"))install.packages("kableExtra", repos = "http://cran.us.r-project.org")
+if(!require("factoextra"))install.packages("factoextra", repos = "http://cran.us.r-project.org")
+if(!require("ggplot2"))install.packages("ggplot2", repos = "http://cran.us.r-project.org")
+if(!require("rpart.plot"))install.packages("rpart.plot", repos = "http://cran.us.r-project.org")
+
+
+library("tidyverse")
+library("dplyr")
+library("ggplot2")
+library("ggfortify")
+library("kableExtra")
+library("rpart")
+library("caret")
+library("ggcorrplot")
+library("summarytools")
+library("caTools")
+library("stargazer")
+
+# need "dataExplorer for plot_histogram
+library("DataExplorer") 
+
+# need reshape2 for meld
+library("reshape2")
+
+# need for 'multiplot'
+library("Rmisc")
+
+# need for plotting pca 
+library("factoextra")
+
+# need for plotting decision tree
+library("rpart.plot")
+
+theme_set(theme_bw(12))
+```
+
+```{r styling, include=FALSE}
+
+#Create Kable wrapper function for thousands separator in table output, and nice formating with kableExtra
+niceKable = function(...) {
+  knitr::kable(..., format.args = list(decimal.mark = '.', big.mark = ",")) %>% kable_styling()
+}
+```
+
+
+
+# Abstract
+
+Scientific American published two articles, one in 2009 stating that the “entire world could get all of its energy—fuel as well as electricity—from wind, water and solar sources by 2030” (Jacobson, M.Z., & Delucchi, M.A., 2009), and another recommended the state of New
+York be powered with wind, water and sun, referred to “WWS” (Fischetti, M., 2013). This vision seeks to replace the use of fossil fuels (coal, oil and natural gas) with renewable energy sources worldwide by the year 2050. Renewable energy is energy from sources that are virtually inexhaustible and naturally replenishing, but finite in that the amount of energy is flow-limited, mechanically or electrically constrained, within a unit of time. The major types of renewable energy are:\footnote{https://www.nrc.gov/docs/ML0906/ML090680583.pdf} biomass, hydropower, geothermal, wind and solar (Renewable Energy Explained*, 2018). 
+
+The purpose of this project is to determine if statistical analysis of published aggregate data available from the U.S. Energy Information Administration indicate that adequate electrical power could be generated with renewable sources. The published annual data is aggregated
+eliminating the possibility of analyzing whether renewable electrical energy generation could meet the daily, weekly and seasonal demands. Also, this project does not look at any of the financial costs for development nor land area needed to accommodate such sources of energy
+(Lyman, 2016).
+
+
+ 
+## Problem Statement
+
+Does a statistical analysis of historical trend data indicate the feasibility for states to produce an adequate supply of electricity using renewable sources by 2050?
+  
+  
+  
+## Tool Selection and Test Methodologies
+
+In deciding which methods to use that work with continuous data, there are numerous statistical methodologies that could be used including KNN (K Nearest Neighbors) and SVM (Support Vector Machines). Decision Trees are a non-parametric supervised learning method that works with continuous and categorical data and can be used in both descriptive and predictive analytics. Logistic Regression and Naïve Bayes are non-descriptive methods that are both simple to implement. Logistic Regression is a probabilistic framework that provides confidence intervals and if additional training data is needed it can be quickly incorporated into the model.
+
+* Decision Tree is easy to interpret and explain, can find nonlinear relationships and interactions within a dataset, is able to classify data, can work with incomplete data, and works with both continuous and categorical data.
+
+* Naïve Bayes is incredibly simple to implement, works well with high dimension and is fast, works well with smaller training data, but assumes independence of data will perform poorly if not met.
+
+* Logistic Regression is used to describe the relationship between one dependent binary variable and one or more nominal, ordinal, or ratio-level independent variable and works well when the dependent variable is binary \footnote{https://towardsdatascience.com/statistical-testing-understanding-how-to-select-the-best-test-for-your-data-52141c305168}
+
+For this analysis Linear Regression and Decision Tree will be used. Principal Component Analysis (PCA) will be used for dimension reduction. There are various R packages that can be utilized to aid in the PCA analysis and investigation
+
+
+ 
+# Data Exploration and Preparation
+
+The U.S. Energy Information Administration (EIA) published data that is cleaned, complete, aggregated, at same scale, but may have been imputed (EIA, 2018). Two datasets are used in this study:
+
+* Annual Sales by State, available from the U.S. Energy Information
+Administration, includes data consisting of Year, State, Industry Sector, Residential, Commercial, Industrial, Transportation, Other, and Total. There are 8 independent variables (IVs) and 1 dependent variable (DV). This data is also a mix of qualitative and quantitative
+variables and contains 3580 observations. 
+
+* Annual Generation by State data, available from the U.S. Energy Information Administration, consists of Year, State, Type of Producer, Energy source, and amount of electricity generated, in Mega-watt hours. Four qualitative IVs and 1 quantitative DV are present in the data. Three of the Independent variables are categorical, and one continuous. The dependent variable is quantitative, the dataset contains 53,753 observations.  
+
+
+The datasets used in this study:
+
+* Annual Retail sales of electricity to ultimate customers (EIA-861) - https://www.eia.gov/electricity/data/state/sales_annual.xlsx (Released: September 22, 2020)
+
+* Net Generation by State by Type of Producer by Energy Source (EIA-906, EIA-920, and EIA-923)- https://www.eia.gov/electricity/data/state/annual_generation_state.xls (Released: September 22, 2020)
+
+Note: _The files downloaded are Excel(xlsx) files they need to be converted to csv as well as a little manual cleaning. For details see Appendix A._
+
+
+ 
+## Data Preparation
+
+Data from the two datasets will be combined and transformed from narrow to wide for analysis and will provide 1530 observations with a mix of qualitative and quantitative data as shown below
+
+The following variables are calculated for the study dataset:
+
+* Renewable is a total of biomass, hydropower, geothermal, wind and solar. (Renewable Energy Explained*, 2018). Wood and Wood Derived Fuels are tracked separate by the EIA data and are included with the other Renewable sources for this study. (See Appendix B for Energy Sources Information)
+
+* Fossil is a total of Coal, Natural Gas, Other Gasses, and Petroleum.
+
+* The Ratio variable is calculated as a ratio of Renewable divided by Total.
+
+* Level - if the ratio is .75 or greater the level is “High” otherwise the level will be “Low”.
+
+The initial process is to read, reshape, and enrich the data from both files and create a single dataset for the study. The initial structure of both files is narrow and long, for this analysis, the dataset also includes data collected from various sources but filtered to only include ‘Total Electric Power Industry’ or ‘Total Power Industry’\footnote{https://www.eia.gov/electricity/monthly/}.
+
+
+ 
+**Loading Annual Generation Data** 
+
+```{r set_working_directory, warning=FALSE, echo=FALSE, include=FALSE}
+setwd("C:\\work\\Harvard Data Science\\PowerGeneration")
+```
+
+```{r read_csv, warning=FALSE, echo=TRUE, include=TRUE}
+
+
+# Read the annual generation data
+path = "annual_generation_state.csv"
+db <- read.table(path, sep=",", header=TRUE)
+
+#Select only observations of "Total Electric Power Industry"
+db_filtered <- subset(db, TYPE.OF.PRODUCER == "Total Electric Power Industry")
+
+# Lets remove the "US" rows since they're an aggregate of the states
+db_filtered <- subset(db_filtered, STATE != "US-TOTAL" )
+db_filtered <- subset(db_filtered, STATE != "US-Total" )
+
+# let's drop columns "X", "X.1", "X.2", "X.3", "X.4", and "X.5"
+db_filtered <- db_filtered[, -c(6:11)]
+
+# Rename some columns for ease of work
+colnames(db_filtered)[colnames(db_filtered) == 'ï..YEAR'] <- 'Year'
+colnames(db_filtered)[colnames(db_filtered) == 'STATE'] <- 'State'
+colnames(db_filtered)[colnames(db_filtered) == 'TYPE.OF.PRODUCER'] <- 'TypeOfProducer'
+colnames(db_filtered)[colnames(db_filtered) == 'ENERGY.SOURCE'] <- 'EnergySource'
+colnames(db_filtered)[colnames(db_filtered) == 'GENERATION..Megawatthours.'] <- 'Generation'
+
+# remove commas (,) from the generation column
+db_filtered$Generation <- str_remove_all(db_filtered$Generation, "[,]")
+
+# Let's make sure the 'Generation' column is numeric 
+db_filtered$Generation <-sapply(db_filtered$Generation,as.numeric)
+
+# let's replase NA's with 0
+db_filtered$Generation <- replace_na(db_filtered$Generation, 0)
+
+nrow_narrow <- nrow(db_filtered)
+ncol_narrow <- ncol(db_filtered)
+```
+
+
+ 
+The initial narrow shape of the data with multiple rows per state per data year, and after being reshaped the data is wide. Initial layout of the data – narrow and long (`r nrow_narrow` observations by `r ncol_narrow` variables)
+
+After the records have been read-in to the data frame and filtered the records must be transformed. This can be accomplished using the spread() function in the “tidyr”\footnote{https://tidyr.tidyverse.org/reference/spread.html} library, a package that provides a way to neatly group data for the r language.
+
+
+
+```{r reshape_data, echo=TRUE, include=TRUE}
+# reshape the data from narrow and Long to Wide and Short
+wide_db <- spread(data = db_filtered,
+              key = EnergySource,
+              value = Generation)
+
+```
+
+
+
+ 
+**Loading Annual Sales Data** 
+
+```{r read_sales_csv, echo=TRUE, include=TRUE}
+# Read the usage data
+path = "sales_annual.csv"
+sales = read.csv(path, header = TRUE)
+names(sales)
+
+#Select only observations of "Total Electric Power Industry"
+sales_filtered <- subset(sales, Industry.Sector.Category == "Total Electric Industry")
+
+
+# let's drop columns "Residential","Commercial","Industrial","Transportation", and "Other" 
+sales_filtered <- sales_filtered[, -c(4:8)]
+
+
+# Lets remove the "US" rows since they're an aggregate of the states
+sales_filtered <- subset(sales_filtered, State != "US")
+
+
+# Rename some columns for ease of work
+colnames(sales_filtered)[colnames(sales_filtered) == 'ï..Year'] <- 'Year'
+colnames(sales_filtered)[colnames(sales_filtered) == 'Industry.Sector.Category'] <- 'IndustrySector'
+
+
+# remove commas (,) from the generation column
+sales_filtered$Total <- str_remove_all(sales_filtered$Total, "[,]")
+
+# Let's make sure the 'Total' column is numeric 
+sales_filtered <- sales_filtered %>% mutate_at('Total', as.numeric)
+
+# let's replase NA's with 0
+sales_filtered$Total <- replace_na(sales_filtered$Total, 0)
+
+```
+
+
+
+Herein, the data has been transferred to the new variable headings. There were various “Energy Source” attributes that were not identified for all states those are set to 0 in the dataset
+
+Once the records in the dataframe have been pivoted, the next process is to add calculated columns. The Renewable column is the sum of Biomass, Geothermal, Hydroelectric, Solar, Wind and Wood. The Fossil column is the sum of Coal, Other Gases, Natural Gas and Petroleum. The Ratio column is calculated by dividing Renewable by Total. The Level column is calculated from the Ratio column if the ratio is .75 or greater then the level is “High”  otherwise the level will be “Low”. Date for the Usage column is from the Annual Sales dataset.
+
+
+```{r add_calculated_columns, echo=FALSE, include=FALSE}
+
+colnames(wide_db)[colnames(wide_db) == "YEAR"] <- 'Year'
+colnames(wide_db)[colnames(wide_db) == "STATE"] <- 'State'
+colnames(wide_db)[colnames(wide_db) == "Hydroelectric Conventional"] <- 'ConvHydro'
+colnames(wide_db)[colnames(wide_db) == "Natural Gas"] <- 'NatGas'
+colnames(wide_db)[colnames(wide_db) == "Other Biomass"] <- 'Biomass'
+colnames(wide_db)[colnames(wide_db) == "Other Gases"] <- 'OtherGases'
+colnames(wide_db)[colnames(wide_db) == "Pumped Storage"] <- 'PSHydro'
+colnames(wide_db)[colnames(wide_db) == "Solar Thermal and Photovoltaic"] <- 'Solar'
+colnames(wide_db)[colnames(wide_db) == "Wood and Wood Derived Fuels"] <- 'Wood'
+
+# let's replase NA's with 0 (Rnewable)
+wide_db$Biomass <- replace_na(wide_db$Biomass, 0)
+wide_db$ConvHydro <- replace_na(wide_db$ConvHydro, 0)
+wide_db$Geothermal <- replace_na(wide_db$Geothermal, 0)
+wide_db$Solar <- replace_na(wide_db$Solar, 0)
+wide_db$Wind <- replace_na(wide_db$Wind, 0)
+wide_db$Wood <- replace_na(wide_db$Wood, 0)
+
+# let's replase NA's with 0 (Fossil)
+wide_db$Coal <- replace_na(wide_db$Coal, 0)
+wide_db$NatGas <- replace_na(wide_db$NatGas, 0)
+wide_db$OtherGases <- replace_na(wide_db$OtherGases, 0)
+wide_db$Petroleum <- replace_na(wide_db$Petroleum, 0)
+
+# let's replase NA's with 0 (Other Energy Sources)
+wide_db$Nuclear <- replace_na(wide_db$Nuclear, 0)
+wide_db$Other <- replace_na(wide_db$Other, 0)
+wide_db$PSHydro <- replace_na(wide_db$PSHydro, 0)
+
+
+# Add calculated columns
+wide_db[,'Renewable'] <- (wide_db[,'Geothermal'] + wide_db[,'Biomass'] +
+                            wide_db[,'ConvHydro'] + wide_db[,'Solar'] +
+                            wide_db[,'Wind'] + wide_db[,'Wood'])
+
+wide_db[,'Fossil'] <- (wide_db[,'Coal'] + wide_db[,'OtherGases'] +
+                            wide_db[,'Petroleum'] + wide_db[,'NatGas'])
+
+wide_db[,'Ratio'] <- (wide_db$Renewable/wide_db$Total)
+
+wide_db[,'Level'] <- ifelse(wide_db$Ratio >= 0.75, "High", "Low")
+
+
+nrow(wide_db)
+
+# add usage column from sales data
+wide_db[,'Usage'] <- sales_filtered$Total
+
+
+```
+
+
+Final process in the data preparation is reorder the columns for ease of use before saving the dataset to a comma-separated-value (csv) file.
+
+
+
+
+```{r, reorder_columns, echo=TRUE, include=TRUE}
+
+# reorder columns
+wide_db <- wide_db[c("Year","State", "TypeOfProducer", "Biomass", "Geothermal", "ConvHydro", 
+  "Solar", "Wind", "Wood", "Coal",
+  "OtherGases", "NatGas", "Petroleum", "Nuclear", "Other", "PSHydro",
+  "Renewable", "Fossil", "Total", "Usage", "Ratio", "Level")]
+  
+```
+
+```{r write_updated_csv, echo=FALSE, include=FALSE, warning=FALSE }
+# Let's write the data to a csv file....
+write.csv(file="annual_generation_state_wide_updated.csv", x=wide_db)
+
+# How many rows and columns do we have 
+nrow_wide <- nrow(wide_db)
+ncol_wide <- ncol(wide_db)
+```
+
+
+
+
+# Data Analysis
+
+Exploratory Data Analysis plays a very important role in the Data Analysts Workflow, which includes univariate (1 – variable) and bivariate (2 – variable) analysis. This process includes analyzing data types, looking for missing values, identifying outliers and analyzing distributions of both numerical and categorical variables.
+
+
+
+## Univariate Analysis
+
+One of the first steps in the analysis is to check continuous variables to see the distribution, as shown in Plot 1. To start this process, the summary() function provides basic descriptive statistics and frequencies that provide insight, such as central tendency, variation and shape of the data as shown below.
+
+
+```{r statistical_summary, echo=TRUE, include=TRUE}
+summary(wide_db)
+```
+
+
+The dataset contains `r nrow_wide ` observations with `r ncol_wide ` variables. Two (2) variables are categorical and nineteen (19) are continuous. 
+
+
+
+
+### Renewable Energy Sources
+
+The following code filters the dataset by the major “Renewable” energy sources. From this filtered data a statistical summary is calculated, and various plots produced. 
+
+
+
+```{r renewable_data_prep, echo=TRUE, include=TRUE, warning=FALSE}
+# Renewable Data
+renewable_data <- wide_db[, c("Biomass", "ConvHydro", "Geothermal", "Solar", "Wind", "Wood")]
+
+stargazer(renewable_data , type="text", summary=TRUE, rownames = TRUE, 
+      title="Renewable Sources", decimal.mark = ".", digits = 1,
+	    digits.extra = 1, digit.separator = "")
+```
+
+
+
+**Histogram of Renewable Sources** 
+
+
+```{r renewable_histogram_plot1, echo=FALSE, include=TRUE, warning=FALSE, fig.align="left", out.width = "72.5%"}
+plot_histogram(renewable_data , title="Renewable Energy", ncol=3L)
+```
+
+
+
+**BoxPlot of Renewable Energy Sources** 
+
+
+```{r renewable_boxplot_plot1, echo=FALSE, include=TRUE, warning=FALSE, fig.align="left", out.width = "72.5%"}
+#melt (pivot) renewable data
+melted_renewable <- melt(renewable_data )
+plot_boxplot(melted_renewable , by="variable", geom_boxplot_args  = list("outlier.color" = "red"))
+```
+
+When looking at the box plot for all the years, 1990-2019, there is a considerable number of observations that are outliers. Since ‘Renewable’ were not really considered 25 years ago if the timeframe is shortened to the last 10 years as in the following box plot there are considerably less observations that appear to be outliers.
+
+
+**10yr BoxPlot of Renewable Energy Sources** 
+
+```{r,  10yr_boxplot, echo=FALSE, include=TRUE, warning=FALSE, fig.align="left", out.width = "72.5%"}
+# box plot of last 10 years
+target_years <- c("2010", "2011", "2012", "2013", "2014", 
+                  "2015", "2016", "2017", "2018", "2019")
+boxplot_data <- wide_db[, c("Year", "State", "Renewable")] %>%
+	filter(Year %in% target_years) %>%
+	group_by(State, Year)
+plot_boxplot(boxplot_data, by="Year", title="Renewable Sources",
+	geom_boxplot_args = list("outlier.color" = "red"))
+
+```
+
+
+
+**Fossil Fuel Sources** 
+
+
+Renewable efforts vary from state to state and without additional filtering of the observations by State some observations still appear to be outliers. The following code filters the dataset by the major “Fossil Fuel” sources. From this filtered data, various plots and a statistical summary is calculated. For the box plot the data is pivoted for visual analysis.
+
+```{r fossil_data_prep, echo=FALSE, include=TRUE, warning=FALSE}
+# Fossil
+fossil_data <- wide_db[, c("Coal","NatGas","OtherGases","Petroleum")]
+stargazer(fossil_data , type="text", summary=TRUE, rownames = TRUE, 
+      title="Fossil Fuel Sources", decimal.mark = ".", digits = 1,
+	    digits.extra = 1, digit.separator = "")
+```
+
+Other Gases has 0 for Pctl(25) and the mean is higher than the Pctl(75), this is a skewed distribution with a significant number of observations with value of 0. Reviewing at the fivenumber summary for OtherGases in the complete dataset summary the median is also 0,
+
+
+\newpage
+**Histogram of Fossil Fuel Sources** 
+
+
+```{r renewable_histogram_plot2, echo=FALSE, include=TRUE, warning=FALSE, fig.align="left", out.width = "72.5%"}
+plot_histogram(fossil_data , title="Renewable Energy", ncol=3L)
+```
+
+
+
+**BoxPlot of  Fossil Fuel Sources** 
+
+
+```{r fossil_boxplot, echo=FALSE, include=TRUE, warning=FALSE, fig.align="left", out.width = "72.5%"}
+#melt (pivot) renewable data
+melted_fossil <- melt(fossil_data )
+plot_boxplot(melted_fossil, by="variable", geom_boxplot_args  = list("outlier.color" = "red"))
+```
+
+When looking at the full dataset it appears there are a considerable number of outliers especially for Natural Gas. While filtering of the dataset by states may give a more accurate statistical description, in this analysis all states are combined and analyzed
+
+
+\newpage
+**10yr BoxPlot of  Fossil Fuel Sources** 
+
+
+```{r, 10yr_boxplot_fossil, echo=FALSE, include=TRUE, warning=FALSE, fig.align="left", out.width = "72.5%"}
+# box plot of last 10 years
+fossil_data <- wide_db[, c("Year", "State", "Fossil")] %>%
+	filter(Year %in% target_years) %>%
+	group_by(State, Year)
+plot_boxplot(fossil_data, by="Year", title="Fossil Fuel Sources (2010-2019)",
+	geom_boxplot_args = list("outlier.color" = "red"))
+
+```
+
+Looking at the last 10 years there are considerably fewer observations that are outliers.
+
+
+### Other Energy Sources
+
+Other sources include pumped-storage hydroelectric, nuclear and other energy sources. PumpedStorage Hydroelectric (PSHydro) generates electricity for peak loads by using water previously pumped into an elevated reservoir during off-peak periods thus adding additional generation capacity ("Pumped-storage hydroelectric", n.d.). Nuclear is not a fossil fuel but a nonrenewable energy source taken from Uranium ore ("Nonrenewable Energy Explained" 2018). Most nuclear electric power plants use a process of splitting uranium atoms, this process is called fission. This process produces heat that turns water into steam, which is used to power turbine generators to produce electricity. Other includes batteries, chemicals, hydrogen, pitch, purchased steam, sulfur, miscellaneous technologies. Beginning in 2001, non-renewable waste (municipal solid waste from non-biogenic sources, and tire-derived fuels). (“Monthly Energy Review”, 2019)
+
+
+The following code filters the dataset by the major “Other” energy sources. 
+
+```{r Other_data_prep, echo=TRUE, include=TRUE, warning=FALSE}
+# Other Sources Data
+other_data <- wide_db[, c("Nuclear", "Other", "PSHydro")]
+
+stargazer(other_data , type="text", summary=TRUE, rownames = TRUE, 
+      title="Alternate/Other Sources", decimal.mark = ".", digits = 1,
+	    digits.extra = 1, digit.separator = "")
+```
+
+
+\newpage
+**Histogram of Other Energy Sources** 
+
+```{r other_histogram_plot, echo=FALSE, include=TRUE, warning=FALSE, fig.align="left", out.width = "72.5%"}
+plot_histogram(other_data , title="Other Energy Sources", ncol=3L)
+
+#melt (pivot) other data
+melted_other <- melt(other_data)
+plot_boxplot(melted_other , by="variable", geom_boxplot_args  = list("outlier.color" = "red"))
+```
+
+PSHydro generation totals are calculated by facility production minus energy used for pumping (“Monthly Energy Review”, 2019). 
+
+
+\newpage
+**10Yr Boxplot of Other Energy Sources** 
+
+```{r,  10yr_boxplot_other, echo=FALSE, include=TRUE, warning=FALSE, fig.align="left", out.width = "72.5%"}
+# box plot of last 10 years
+target_years <- c("2010", "2011", "2012", "2013", "2014", 
+                  "2015", "2016", "2017", "2018", "2019")
+
+# Prep data
+other_data <- wide_db %>%
+	filter(Year %in% target_years) %>%
+	group_by(State, Year) %>%
+	summarize(Year=Year, OtherSources = (Nuclear + Other + PSHydro)) 
+
+# Plot data
+plot_boxplot(other_data, by="Year", title="Other Sources",
+	geom_boxplot_args = list("outlier.color" = "red"))
+
+```
+
+
+ 
+## Bivariate Analysis
+
+```{r renewable_bivariate_data, echo=TRUE, include=TRUE, warning=FALSE}
+
+renewable_data <- wide_db[, c( "State", "Year", "Biomass", "ConvHydro", "Geothermal", "Solar", "Wind", "Wood")] %>%
+    group_by(State)
+```
+
+```{r bivariate_renewable_data, warnings=FALSE, echo=FALSE, include=FALSE}
+
+states <- unique(c(wide_db[,2]))
+states <- as.vector(states)
+
+state_db <- wide_db %>% 
+  filter(State %in% states) 
+```
+
+
+ 
+**Renewable Sources** 
+
+```{r bivariate_renewable_plots,warnings=FALSE, echo=FALSE, include=TRUE, fig.align="center", out.width = "72.5%"}
+# Biomass_plot
+Biomass_plot <-  state_db %>% 
+  ggplot( aes(x=Year, group=State, color=State)) +
+  geom_line( aes( y=Biomass)) +
+  theme(axis.text.y = element_blank(),
+  axis.ticks.y = element_blank()) +
+  xlab(NULL) + theme(legend.position = "none")
+
+# ConvHydro_plot
+ConvHydro_plot <- state_db %>% 
+  ggplot( aes(x=Year, group=State, color=State)) +
+  geom_line( aes( y=ConvHydro)) +
+  theme(axis.text.y = element_blank(),
+  axis.ticks.y = element_blank()) +
+  xlab(NULL) + theme(legend.position = "none")
+
+# Geothermal_plot
+Geothermal_plot <- state_db %>% 
+  ggplot( aes(x=Year, group=State, color=State)) +
+  geom_line( aes( y=Geothermal)) +
+  theme(axis.text.y = element_blank(),
+  axis.ticks.y = element_blank()) +
+  xlab(NULL) + theme(legend.position = "none")
+
+# Solar_plot
+Solar_plot <- state_db %>% 
+  ggplot( aes(x=Year, group=State, color=State)) +
+  geom_line( aes( y=Solar)) +
+  theme(axis.text.y = element_blank(),
+  axis.ticks.y = element_blank()) +
+  xlab(NULL) + theme(legend.position = "none")
+
+# Wind_plot
+Wind_plot <- state_db %>% 
+  ggplot( aes(x=Year, group=State, color=State)) +
+  geom_line( aes( y=Wind)) +
+  theme(axis.text.y = element_blank(),
+  axis.ticks.y = element_blank()) +
+  xlab(NULL) + theme(legend.position = "none")
+
+# Wood_plot
+Wood_plot <- state_db %>% 
+  ggplot( aes(x=Year, group=State, color=State)) +
+  geom_line( aes( y=Wood)) +
+  theme(axis.text.y = element_blank(),
+  axis.ticks.y = element_blank()) +
+  xlab(NULL) + theme(legend.position = "none")
+
+# Use multiplot to combine multiple plots in 3x2 
+multiplot(Biomass_plot, ConvHydro_plot, Geothermal_plot, Solar_plot,Wind_plot,Wood_plot, cols=2)
+
+```
+
+
+```{r bivariate_fossil_data, warnings=FALSE, echo=FALSE, include=FALSE}
+
+state_db <- wide_db %>% 
+  filter(State %in% states) 
+```
+
+
+
+\newpage
+**Fossil Fuel Sources** 
+
+```{r bivariate_fossil_plots1,warnings=FALSE, echo=FALSE, include=TRUE, fig.align="center", out.width = "72.5%"}
+# Coal_plot
+Coal_plot <-  state_db %>% 
+  ggplot( aes(x=Year, group=State, color=State)) +
+  geom_line( aes( y=Coal)) +
+  theme(axis.text.y = element_blank(),
+  axis.ticks.y = element_blank()) +
+  xlab(NULL) + theme(legend.position = "none")
+
+# NatGas_plot
+NatGas_plot <- state_db %>% 
+  ggplot( aes(x=Year, group=State, color=State)) +
+  geom_line( aes( y=NatGas)) +
+  theme(axis.text.y = element_blank(),
+  axis.ticks.y = element_blank()) +
+  xlab(NULL) + theme(legend.position = "none")
+
+# OtherGases_plot
+OtherGases_plot <- state_db %>% 
+  ggplot( aes(x=Year, group=State, color=State)) +
+  geom_line( aes( y=OtherGases)) +
+  theme(axis.text.y = element_blank(),
+  axis.ticks.y = element_blank()) +
+  xlab(NULL) + theme(legend.position = "none")
+
+# Petroleum_plot
+Petroleum_plot <- state_db %>% 
+  ggplot( aes(x=Year, group=State, color=State)) +
+  geom_line( aes( y=Petroleum)) +
+  theme(axis.text.y = element_blank(),
+  axis.ticks.y = element_blank()) +
+  xlab(NULL) + theme(legend.position = "none")
+
+
+# Use multiplot to combine multiple plots in 3x2 
+multiplot(Coal_plot, NatGas_plot, OtherGases_plot, Petroleum_plot, cols=2)
+
+```
+
+ 
+
+```{r bivariate_othersources_data, warnings=FALSE, echo=FALSE, include=FALSE}
+
+state_db <- wide_db %>% 
+  filter(State %in% states) 
+```
+ 
+
+
+ 
+ 
+**Other Energy Sources** 
+
+
+```{r bivariate_fossil_plots2,warnings=FALSE, echo=FALSE, include=TRUE, fig.align="center", out.width = "72.5%"}
+# Nuclear_plot
+Nuclear_plot <-  state_db %>% 
+  ggplot( aes(x=Year, group=State, color=State)) +
+  geom_line( aes( y=Nuclear)) +
+  theme(axis.text.y = element_blank(),
+  axis.ticks.y = element_blank()) +
+  xlab(NULL) + theme(legend.position = "none")
+
+# Other_plot
+Other_plot <- state_db %>% 
+  ggplot( aes(x=Year, group=State, color=State)) +
+  geom_line( aes( y=Other)) +
+  theme(axis.text.y = element_blank(),
+  axis.ticks.y = element_blank()) +
+  xlab(NULL) + theme(legend.position = "none")
+
+# PSHydro_plot
+PSHydro_plot <- state_db %>% 
+  ggplot( aes(x=Year, group=State, color=State)) +
+  geom_line( aes( y=PSHydro)) +
+  theme(axis.text.y = element_blank(),
+  axis.ticks.y = element_blank()) +
+  xlab(NULL) + theme(legend.position = "none")
+
+
+# Use multiplot to combine multiple plots in 3x2 
+multiplot(Nuclear_plot, Other_plot, PSHydro_plot, cols=2)
+
+```
+ 
+
+
+\newpage
+**Correlation Matrix of All Energy Sources** 
+
+```{r, corr_corelation, warnings=FALSE, echo=FALSE, include=TRUE, fig.align="center", out.width = "85%"}
+
+corr_db <- wide_db%>% dplyr::select(4:16)
+corr <- round(cor(corr_db), 1)
+
+# Visualize the correlation matrix
+#           --
+# method = "square" (default)
+ggcorrplot(corr, lab = TRUE, outline.col = "white")
+
+```
+```{r, save_wide_db, warnings=FALSE, echo=FALSE, include=TRUE}
+
+# Let's write the data to a csv file....
+write.csv(file="annual_generation_state_wide_updated.csv", x=wide_db)
+
+```
+ 
+ 
+ 
+ 
+## Multivariate Analysis
+
+According to the Principal Component Analysis (PC4) the three most explanatory variables are Solar, Geothermal and Conventional Hydroelectric. Wood, Wind and Biomass are not significant in explaining the variance.
+ 
+
+ 
+### Principal Component Analysis(PCA)
+
+PCA is a method used to reduce number of variables in your data by extracting important one from a large pool. It reduces the dimension of your data with the aim of retaining as much information as possible.\footnote{https://towardsdatascience.com/principal-component-analysis-intro-61f236064b38}
+
+```{r pca_analysis, warnings=FALSE, echo=FALSE, include=TRUE}
+
+pca <- prcomp(wide_db[,c(4:16)], center = TRUE,scale. = TRUE)
+
+pca
+
+```
+
+
+
+ 
+**Summary of PCA Analysis** 
+
+
+```{r pca_analysis_summary, warnings=FALSE, echo=FALSE, include=TRUE}
+summary(pca)
+```
+
+
+\newpage
+**PCA Plots** 
+
+
+```{r pca_analysis_plot,  warnings=FALSE, echo=FALSE, include=TRUE, fig.align="center", out.width = "72.5%"}
+
+autoplot(pca)
+```
+
+
+
+ 
+**BarPlot with percentage of variances explained by each principal component.** 
+
+
+```{r pca_analysis_screplot,  warnings=FALSE, echo=FALSE, include=TRUE, fig.align="center", out.width = "72.5%"}
+fviz_eig(pca)
+```
+
+
+
+ 
+**Graph of Sources. Sources with a similar profile are grouped together.** 
+
+```{r pca_analysis_indplot,  warnings=FALSE, echo=FALSE, include=TRUE, fig.align="center", out.width = "72.5%"}
+fviz_pca_ind(pca,
+             col.ind = "cos2", # Color by the quality of representation
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+             repel = TRUE     # Avoid text overlapping
+             )
+```
+
+
+
+ 
+**Biplot of sources and variables** 
+
+```{r pca_analysis_bipplot,  warnings=FALSE, echo=FALSE, include=TRUE, fig.align="center", out.width = "72.5%"}
+fviz_pca_biplot(pca, repel = TRUE,
+                max.overlaps = Inf,
+                col.var = "#2E9FDF", # Variables color
+                col.ind = "#696969"  # Individuals color
+                )
+```
+
+
+ 
+## Split of Data
+
+In this project the data is split balanced 80% for training and 20% for testing.  The createDataPartition()  function in the caret package attempts to balance the class distributions within the splits.
+
+To make the training and test datasets, first set a seed.  The advantage of setting a seed is that it provides a reproducible sequence of random numbers in the random number generator.
+
+```{r, data_split, warnings=FALSE, echo=TRUE, include=TRUE}
+# set random seed to make reproducible results
+set.seed(2020, sample.kind="Rounding") 
+
+# split the data 80% training and 20% testing
+split_index <- createDataPartition(y = wide_db$Level, times = 1, p = 0.2, list = FALSE)
+train_db <- wide_db[-split_index,]
+test_db <- wide_db[split_index,]
+
+# little house-keeping
+rm(split_index )
+```
+
+Check the split of the train and test dataset by passing the dataset into the dim() function.
+```{r, model_split_dimensions , warnings=FALSE, echo=FALSE, include=TRUE}
+# check dimensions of the training and test data sets 
+dim(train_db)
+dim(test_db)
+```
+
+
+
+## Linear Regression 
+
+Linear regression will be used to predict an outcome variable based on one or more predictor variables.  Model selection is the first step that is accomplished by the following code:
+
+```{r, glm_set_up , error=FALSE, warnings=FALSE, echo=FALSE, include=FALSE}
+# add column to both train and test LevelNum (1 or 0)
+train_db$LevelNum = ifelse(train_db$Level == "High", 1,0)
+test_db$LevelNum = ifelse(test_db$Level == "High", 1, 0)
+```
+
+```{r, glm_step_model , error=FALSE, warnings=FALSE, echo=TRUE, include=TRUE}
+# Let's look for the best model
+lm_model = step(glm(train_db$LevelNum ~ ., data = train_db %>%
+	dplyr::select(Biomass, ConvHydro, Solar, Wind, Wood), 
+	family=binomial(link='logit')),
+	direction = "both")
+```
+
+Code for stepwise evaluation of various modes using glm (Generalized Linear Model)
+The glm package, or generalized linear model, is a collection of models when used with the step function allows stepwise evaluation of the various models.  
+ 
+
+### Model comparison with GLM using stepwise evaluation
+
+The models are compared with various variables added or removed using stepwise and subset selection to determine the best model.  The “goodness of fit” can be included as an argument.  The Akaike Information criterion (AIC) is typically used for selection, using the Bayesian information criterion (BIC) usually results in more parsimonious model.
+ 
+ 
+### Code for Linear Regression Model
+
+The model with the best score included Conventional Hydro and Biomass only.   The models for the training and test dataset were updated based on the selected model.  After the model was run against the training and test dataset a statistical summary explains the goodness of fit.   
+
+```{r, run_regression_model , warnings=FALSE, echo=TRUE, include=TRUE}
+# build model from train data
+lm_train = lm(formula = train_db$LevelNum ~ Biomass + ConvHydro + Wood, data = train_db)
+
+# build model from test data
+lm_test = lm(formula = test_db$LevelNum ~ Biomass + ConvHydro + Wood, data = test_db)
+
+```
+ 
+ 
+
+**Summary statistics for the Train Linear Model** 
+
+```{r, train_model_summary , warnings=FALSE, echo=FALSE, include=TRUE}
+summary(lm_train)
+```
+
+
+
+**Summary statistics for the Test Linear Model** 
+
+
+```{r, test_model_summary , warnings=FALSE, echo=FALSE, include=TRUE}
+summary(lm_test)
+```
+
+
+
+
+**Anova comparison of Train and Test** 
+
+```{r, anova_test_model , warnings=FALSE, echo=FALSE, include=TRUE}
+
+anova.res <- anova(lm_train, lm_test, test="Chisq")
+
+stargazer(anova.res, type = "text", summary = FALSE, rownames = TRUE)
+
+```
+
+
+
+
+## Decision Tree
+
+For this project the split data that was used with the Linear Regression model is also used for the Decision Tree. The training set is used to build the models and is provided the outcome for each observation. The model is based on the “features”: Level, Biomass, and ConvHydro. The test set will be used to see how well the model performs on unseen data.  For each observation in the test set, the trained model is used to predict the outcome in the test and scored for accuracy. One of the advantages of decision trees is that they are intuitively very easy to visually plot and explain and closely mirrors a human decision-making approach.
+ 
+ 
+ 
+### R code for decision tree visualization and summary
+
+Initially grow and visualize the tree. Provide a statistical summary of the tree with confusion matrix and then test accuracy of the two datasets.
+
+```{r, decision_tree_model , warnings=FALSE, echo=TRUE, include=TRUE}
+
+# grow tree / build model
+# use 'class' method because we are predicting a class
+dt_fit <- rpart(Level ~ ConvHydro + Biomass + Wood - Year, 
+	method="class", data=train_db)
+ 
+#display the results
+printcp(dt_fit)
+```
+
+
+
+**Decision Tree cross Validation** 
+
+```{r, decision_tree_cross_validation , warnings=FALSE, echo=FALSE, include=TRUE, fig.align="center", out.width = "50%"}
+
+#visualize cross-validation results
+plotcp(dt_fit)
+
+
+```
+
+
+
+**Decision Tree of the “Renewable” sources** 
+
+```{r, plot_tree_model , warnings=FALSE, echo=FALSE, include=TRUE, fig.align="center", out.width = "72.5%"}
+
+rpart.plot(dt_fit)
+```
+
+
+
+**Summary of the decision tree** 
+
+The summary lists the variables in their order of importance.  The decision tree model is shown in the following visualization. 
+```{r, decision_summary_of_splits , warnings=FALSE, echo=FALSE, include=TRUE}
+# detailed summary of splits
+summary(dt_fit)
+```
+
+ 
+Conventional Hydroelectric, Biomass, Wood (Wood and Wood Derived Fuels) and Wind are selected in the Decision tree.  Both Train and Test exhibited good accuracy with the data.
+ 	 
+ 	 
+ 	 
+### Confusion Matrix and Statistics for Train dataset
+
+```{r, train_decision_tree_testing , warnings=FALSE, echo=TRUE, include=TRUE}
+#Predict for train_db
+train_pred <- predict(dt_fit, type = "class", newdata = train_db)
+train_tree <- table(train_db$Level, train_pred)
+
+# Display confusionmatrix for train
+confusionMatrix(train_tree)
+
+```
+
+
+
+### Confusion Matrix and Statistics for Test dataset
+
+```{r, test_decision_tree_testing , warnings=FALSE, echo=FALSE, include=TRUE}
+#Predict for test_db
+test_pred <- predict(dt_fit, type = "class", newdata = test_db)
+test_tree <- table(test_db$Level, test_pred)
+
+# Display confusionmatrix for test
+confusionMatrix(test_tree)
+
+```
+
+
+
+### Accuracy of Decision Tree Train and Test dataset
+
+```{r, decision_tree_accuracy , warnings=FALSE, echo=TRUE, include=TRUE}
+# calculate train Accuracy and save to data.frame
+train_accuracy <- table(Predicted = train_pred, Actual = train_db$Level)
+dtree_train_accuracy <- sum(diag(train_accuracy))/sum(train_accuracy)
+results <- data.frame(model="train Data", Accuracy=dtree_train_accuracy)
+
+# calculate test Accuracy and save to data.frame
+test_accuracy <- table(Predicted = test_pred, Actual = test_db$Level)
+dtree_test_accuracy <- sum(diag(test_accuracy))/sum(test_accuracy)
+results <- results %>% add_row(model="Test Data", Accuracy=dtree_test_accuracy)
+
+```
+
+
+
+Accuracy is the proportion of true positive and true negative divided by the sum of the matrix.  The formula for calucating accuracy:
+
+$$accuracy = \frac{TP + TN}{TP + TN +FP + FN} $$
+
+```{r Accuracy_summary, echo=FALSE, message=FALSE, warnings=FALSE, }
+results %>% 
+  kable(caption = "Decision Tree Accuracy", digits = 4) %>%
+  kable_styling(font_size = 10, position = "center",
+                  latex_options = "HOLD_position")
+```
+
+
+
+
+# Discussion
+
+Looking at the energy sources identified by the Linear Regression Model, the Decision Tree and Principal Component Analysis Conventional Hydroelectric was identified by all three.  Biomass was identified for use in the Linear Regression model and Decision Tree.  Principal component analysis identified Conventional Hydroelectric, Solar and Geothermal as explaining the most variability in the data. While this study looks at the renewable generation from a national view, there are a significant number of states that renewable energy makes up less than 10% of their total generation.  When reviewing the ratios, simply because renewable may be 70% of their total electric produced that doesn’t necessarly mean they can produce the amount that is necessary when demand is high.  This study focused on aggregate total numbers and not the detailed daily, weekly, and seasonal high and low numbers for generation and consumption demands.  
+ 
+```{r, top_ratio_renewable , warnings=FALSE, echo=FALSE, include=TRUE}
+
+ top_ratio_renewable <- arrange(wide_db, desc(Ratio)) %>%
+   dplyr::select(Year, State, Ratio)
+ head(top_ratio_renewable) %>% kable(caption = "Renewable Top Ratios",
+        digits = 2) %>%
+  kable_styling(font_size = 8, position = "center",
+                  latex_options = "HOLD_position")
+ 
+```
+ 
+ 
+The Ratio of electrial energy produced (Renewable/ Total) in descending order another interesting way to look at the data. Looking at the ratio in descending order to determine the states that are producing a significant amount of electrical power using renewable sources.
+
+```{r, top_states_renewable , warnings=FALSE, echo=FALSE, include=TRUE}
+
+ top_states_renewable <- top_ratio_renewable %>%
+   dplyr::select(Year, State, Ratio)  %>%
+  distinct(State)
+  head(top_states_renewable) %>% kable(caption = "Renewable Top States",
+        digits = 2) %>%
+  kable_styling(font_size = 8, position = "center",
+                  latex_options = "HOLD_position")
+```
+
+Reviewing the ratio of electricity generation (Total/Renewable Sources) for 2019 the top “Renewable” states Vermont (99%), Idaho (76.3%), Washington (69.7%), and South Dakota (73.8%) they are producing a large amount of their total energy with renewable. 
+
+
+
+# Limitations and Delimitations
+
+Limitations include time constraints that affect statistical methodologies selected for the analysis as well as the granularity, completeness, and accuracy of the data as it may have been imputed or estimated (EIA, 2018).  This project looks only at the electricity generation part of quote by Mark Jacobson ”fuel as well as electricity” (Jacobson, M.Z., & Delucchi, M.A., 2009).   This project looks at the aggregated annual data which does not have the granularity to analyze the daily, monthly and seasonal peak demands.  Also, this project does not look at any of the financial costs for development or land area needed to accommodate such sources of energy (Lyman,2016). Electric generation technologies not currently tracked by EIA include wave devices, tidal turbines, and residential and commercial roof mounted solar panels.  Regression projections of necessary available (generated) energy and sales (consumption) will be based on current consumption to generation ratios.   
+
+Delimitations include from the available EIA data only annual aggregates for the "Total Electric Power Industry", as type of producer, is used and all “energy source” variables were selected. “US Totals” were not included as this study is looking at individual states.  The statistical analysis and focus of research are renewable energy sources: Biomass, Conventional Hydroelectric, Solar, Wind, and Wood and Wood derived Fuels. Biomass includes municipal solid waste from biogenic sources, landfill gas, sludge waste, agricultural byproducts, and other biomass.  From 1990 through 2000,  biomass also  included non-renewable  waste  (municipal  solid  waste  from  non-biogenic  sources,  and tire-derived fuels).  From 1990 through 1989, hydroelectric pumped storage is included in “Conventional Hydroelectric Power."Solar - Electricity  net  generation  from  solar  thermal  and  photovoltaic  (PV)  energy  at utility-scale facilities and does not include distributed  (small-scale) solar photovoltaic generation. Other Gases includes blast  furnace  gas,  and  other  manufactured  and  waste  gases  derived  from fossil fuels. From 1990 through 2010, other-gases also included propane gas.  Petroleum includes distillate  fuel  oil,  residual  fuel  oil,  petroleum  coke,  jet  fuel,  kerosene,  other petroleum, waste oil, and, beginning in 2011, propane.  Hydro-electric Pumped Storage is calculated as pumped storage facility production minus energy used for pumping (“Monthly Energy Review”, 2019).
+
+
+
+# Conclusions and Future Study
+
+In 2019, electric generation by renewable sources such as hydropower, wind, solar and geothermal made up about 17.9% of the electricity powering our nation, up from 9.3% in 2000.  Looking at individual states in 2019, 21 states produced less than 10% of their total using renewable energy sources.  In 2019, six states renewable sources produced over 60% of their total generation.  While this may appear to be significant, these are total numbers and don’t reflect the daily, weekly and seasonal changes in demand.  Statistically it may imply that it’s possible that a few states may be able to produce enough over the year but may not be able to produce enough on-demand to meet their needs.  A study with more fine grained data that would allow the study of generation and demands cycles would be necessary for a more conclusive outcome.
+
+
+
+
+\newpage
+
+# References
+
+- Jacobson, M.Z., &Delucchi, M.A. (2009, November ). Retrieved December 20, 2020, from https://www.scientificamerican.com/article/a-path-to-sustainable-energy-by-2030/
+
+- Fischetti, M. (2013, April 15). How to Power the World without Fossil Fuels. Retrieved December 20, 2020, from https://www.scientificamerican.com/article/how-to-power-the-world/
+
+- Pulkkinen, L. (2019, May 14). Why Washington Is the Best State in America. Retrieved December 22, 2020, from https://www.usnews.com/news/best-states/articles/2019-05-14/amazon-clean-power-help-fuel-washington
+
+- Simon, R.M., & Hayes, D.J. (2017, June 29). America’s Clean Energy Success, by the Numbers. Retrieved December 22, 2020, from https://www.americanprogress.org/issues/green/reports/2017/06/29/435281/americas-clean-energy-success-numbers/
+
+- Huetteman, T., & Martin, L. (2016, June 17). Clean Power Plan accelerates the growth of renewable generation throughout United States. Retrieved December 22, 2020, from https://www.eia.gov/todayinenergy/detail.php?id=26712
+
+- Chevalier, Z. (2018, July 23). These States Use the Most Renewable Energy. December 26, 2020, from https://www.usnews.com/news/best-states/slideshows/these-states-use-the-most-renewable-energy
+
+- Levin, A. (2018, February 28). 2017 Clean Energy By the Numbers: A State-by-State Look. Retrieved December 26, 2020, from https://www.nrdc.org/experts/amanda-levin/2017-clean-energy-by-the-numbers-a-state-by-state-look
+
+- Lyman, Robert (2016, May) Why Renewable Energy Cannot Replace Fossil Fuels by 2050.  Retrieved December 27, 2020, from
+https://friendsofscience.org/assets/documents/Renewable-energy-cannot-replace-FF_Lyman.pdf
+
+- EIA, US Energy Information Administration (2018, March). A Guide to EIA Electric Power Data, Retrieved December 28, 2020, from https://www.eia.gov/electricity/data/guide/pdf/guide.pdf
+
+- (2020, June 20) Renewable Energy Explained.  What is renewable energy? Retrieved December 28, 2020, from https://www.eia.gov/energyexplained/?page=renewable_home
+
+- (n.d.) Nonrenewable Energy Explained. Nonrenewable energy sources. Retrieved December 28, 2020, from https://www.eia.gov/energyexplained/index.php?page=nonrenewable_home
+
+- (n.d.) Glossary. Pumped-storage hydroelectric plant. Retrieved December 28, 2020, from https://www.eia.gov/tools/glossary/index.php?id=Pumped-storage%20hydroelectric%20plant
+
+- (Dec, 2020) Monthly Energy Review, Electricity Net Generation: Electric Power Sector (Table 7.2b)   Retrieved December 28, 2020, from https://www.eia.gov/totalenergy/data/monthly/pdf/sec7.pdf
+
+- Silverman, Adam (2017, April 30) Vermont ranks No. 2 in US for renewable energy. Retrieved December 30, 2020, from
+https://www.burlingtonfreepress.com/story/news/2017/04/30/vermont-ranks-high-for-renewable-energy/100955606/
+
+
+\newpage
+
+# Appendix A
+
+
+_The files that can be downloaded are Excel(xlsx) files they need a little manual cleaning and to be converted to csv.  The following directions should help in preparing the files._
+
+
+
+**For the Annual Sales File:**
+URL: https://www.eia.gov/electricity/data/state/sales_annual.xlsx
+
+Row 1 needs to be deleted:
+1. Select Row 1 and then left-click and in the context menu select delete
+2. Verify the row has been deleted
+
+To save the Excel(xlsx) file in csv format:
+1. From the Menu select "File" then scroll down to "Save As"
+2. Change the file type to "CSV UTF-8 (Comma delimited) (*.csv) 
+3. Press "Save"
+
+
+
+**For the Annual Generation by State file:**
+URL: https://www.eia.gov/electricity/data/state/annual_generation_state.xlsx
+
+Row 1 needs to be deleted:
+1. Select Row 1 and then left-click and in the context menu select delete
+2. Verify the row has been deleted
+
+There are 3 rows of 2003 that need to be deleted - they have no state or values assigned:
+1. Select Year column, the press ctrl+F to open find dialog. 
+2. Enter 2003 in the "Find What" drop down and press "Find Next"
+_Note: In the file I downloaded they are rows: 20578, 20579, and 20580_
+3. Select the three rows and then left-click and in the context menu select delete
+4. Verify the three rows have been deleted
+
+To save the Excel(xlsx) file in csv format:
+1. From the Menu select "File" then scroll down to "Save As"
+2. Change the file type to "CSV UTF-8 (Comma delimited) (*.csv) 
+3. Press "Save"
+
+
+\newpage
+
+# Appendix B
+
+**Renewable Energy Sources** (the major sources)
+
+* Biomass (includes Wood and Wood Derived Fuels)
+
+* Geothermal
+
+* Hydropower
+
+* Wind
+
+* Solar
+
+
+**Non-Renewable Energy Sources**
+
+**Fossil Fuels** - Coal, crude oil, and natural gas are all considered fossil fuels because they were formed from the buried remains of plants and animals that lived millions of years ago.
+
+* Uranium (Nuclear Energy) – uranium is not a fossil fuel but is classified as a nonrenewable fuel.
+
+
+
+**For further explanation of the various fuel sources:**
+
+* Biomass includes biogenic municipal solid waste, landfill gas, sludge waste, agricultural byproducts, other biomass solids, other biomass liquids, and other biomass gases (including digester gases and methane).
+
+* Solar - Electricity  net  generation  from  solar  thermal  and  photovoltaic  (PV)  energy  atutility-scale facilities.  Does not include distributed (small-scale) solar photovoltaicgeneration.
+
+* Wood and Wood Derived Fuels includes paper pellets, railroad ties, utility poles, wood chips, bark, red liquor, sludge wood, spent sulfite liquor, and black liquor, with other wood waste solids and wood-based liquids.
+
+* Other Gases includes blast furnace gas, propane gas, and other manufactured and waste gases derived from fossil fuels.
+
+* Petroleum includes distillate fuel oil (all diesel and No. 1, No. 2, and No. 4 fuel oils), residual fuel oil (No. 5 and No. 6 fuel oils and bunker C fuel oil), jet fuel, kerosene, petroleum coke, and waste oil.
+
+* Other includes non-biogenic municipal solid waste, batteries, chemicals, hydrogen, pitch, purchased steam, sulfur, tire-derived fuels, and miscellaneous technologies.
+
