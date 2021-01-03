@@ -53,7 +53,7 @@ library("rpart.plot")
 
 theme_set(theme_bw(12))
 
-setwd("C:\\Work\\Harvard Data Science\\PowerGeneration")
+#setwd("C:\\Work\\Harvard Data Science\\PowerGeneration")
 
 # ** Load Annual Generation Data **
 # Read the annual generation data
@@ -77,7 +77,7 @@ db_filtered <- db_filtered[, -c(6:11)]
 
 
 # Rename some columns for ease of work
-colnames(db_filtered)[colnames(db_filtered) == 'ï..YEAR'] <- 'Year'
+colnames(db_filtered)[colnames(db_filtered) == 'Ã¯..YEAR'] <- 'Year'
 colnames(db_filtered)[colnames(db_filtered) == 'STATE'] <- 'State'
 colnames(db_filtered)[colnames(db_filtered) == 'TYPE.OF.PRODUCER'] <- 'TypeOfProducer'
 colnames(db_filtered)[colnames(db_filtered) == 'ENERGY.SOURCE'] <- 'EnergySource'
@@ -119,7 +119,7 @@ sales_filtered <- subset(sales_filtered, State != "US")
 
 
 # Rename some columns for ease of work
-colnames(sales_filtered)[colnames(sales_filtered) == 'ï..Year'] <- 'Year'
+colnames(sales_filtered)[colnames(sales_filtered) == 'Ã¯..Year'] <- 'Year'
 colnames(sales_filtered)[colnames(sales_filtered) == 'Industry.Sector.Category'] <- 'IndustrySector'
 
 
