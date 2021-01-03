@@ -162,7 +162,7 @@ The initial process is to read, reshape, and enrich the data from both files and
 **Loading Annual Generation Data** 
 
 ```{r set_working_directory, warning=FALSE, echo=FALSE, include=FALSE}
-setwd("C:\\work\\Harvard Data Science\\PowerGeneration")
+#setwd("C:\\work\\Harvard Data Science\\PowerGeneration")
 ```
 
 ```{r read_csv, warning=FALSE, echo=TRUE, include=TRUE}
